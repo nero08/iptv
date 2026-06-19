@@ -51,16 +51,16 @@ jobs:
           path: deko-iptv-setup.exe
           retention-days: 30
 
+      # Note: requires api.deko-iptv.fr to have valid DNS and the
+      # ADMIN_API_TOKEN secret to be set in the repository settings.
       - name: Upload to server
         shell: pwsh
         continue-on-error: true
         env:
           ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
         run: |
-          $response = curl.exe -sv `
+          curl.exe -sf `
             -X POST `
             -H "Authorization: Bearer $env:ADMIN_API_TOKEN" `
             -F "file=@deko-iptv-setup.exe" `
             "https://api.deko-iptv.fr/admin/api/upload-artifact/deko-iptv-setup.exe"
-          Write-Host "curl exit code: $LASTEXITCODE"
-          Write-Host "Response: $response"
