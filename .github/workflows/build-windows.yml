@@ -5,16 +5,14 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    # windows-2022 ships VS 2022 (17.x), which Flutter 3.32.5 maps correctly
+    # to the 'Visual Studio 17 2022' CMake generator. windows-latest now ships
+    # VS 2025 (18.x), which is unknown to Flutter 3.32.5.
+    runs-on: windows-2022
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup MSVC developer environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -24,81 +22,6 @@ jobs:
 
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
-
-      # windows-latest ships VS 18 (2025). Flutter 3.32.5 does not know VS 18
-      # and falls back to 'Visual Studio 16 2019' (not installed). The only
-      # reliable generator when MSVC is in PATH via ilammy/msvc-dev-cmd is Ninja.
-      #
-      # Two patches are required:
-      #  1. visual_studio.dart  -- return 'Ninja' for VS major version 18
-      #  2. build_windows.dart  -- skip the -A flag (VS-only) and add
-      #                            -DCMAKE_BUILD_TYPE=Release (Ninja is
-      #                            single-config and ignores --config at build
-      #                            time without this flag at configure time)
-      #
-      # After patching, the precompiled flutter_tools.snapshot is deleted so
-      # Flutter recompiles from the patched Dart source (the stamp is based on
-      # pubspec.yaml hash, not individual .dart files, so patching a .dart file
-      # alone does not invalidate the cached snapshot).
-      - name: Patch Flutter for Ninja generator (VS 18 workaround)
-        shell: python {0}
-        run: |
-          import os, sys
-
-          flutter_root = os.environ['FLUTTER_ROOT']
-          tools_dir = os.path.join(
-              flutter_root, 'packages', 'flutter_tools', 'lib', 'src', 'windows')
-
-          def patch_file(path, replacements):
-              """Apply a list of (old, new) string replacements to a file."""
-              with open(path, 'r', encoding='utf-8', newline='') as fh:
-                  content = fh.read()
-              for old, new in replacements:
-                  # Support both LF and CRLF line endings in multi-line patterns
-                  found = False
-                  for old_norm in [old, old.replace('\n', '\r\n')]:
-                      if old_norm in content:
-                          content = content.replace(old_norm, new, 1)
-                          found = True
-                          break
-                  if not found:
-                      sys.exit(f'ERROR: patch target not found in {path}:\n  {repr(old)}')
-              with open(path, 'w', encoding='utf-8', newline='') as fh:
-                  fh.write(content)
-
-          # 1. visual_studio.dart: map VS major 18 -> Ninja
-          patch_file(
-              os.path.join(tools_dir, 'visual_studio.dart'),
-              [("_ => 'Visual Studio 16 2019'",
-                "18 => 'Ninja',\n      _ => 'Visual Studio 16 2019'")])
-          print('visual_studio.dart patched')
-
-          # 2. build_windows.dart:
-          #    a) Remove '-A' / getCmakeWindowsArch (VS-only flag, breaks Ninja)
-          #       and inject -DCMAKE_BUILD_TYPE=Release (Ninja is single-config)
-          #    b) Lowercase '--target' 'INSTALL' -> 'install'
-          #       (Ninja target is lowercase; MSBuild is case-insensitive)
-          patch_file(
-              os.path.join(tools_dir, 'build_windows.dart'),
-              [
-                ("      '-A',\n      getCmakeWindowsArch(targetPlatform),",
-                 "      if (generator == 'Ninja') '-DCMAKE_BUILD_TYPE=Release',"),
-                ("'--target', 'INSTALL'",
-                 "'--target', 'install'"),
-              ])
-          print('build_windows.dart patched')
-
-          # 3. Delete precompiled snapshot so Flutter recompiles from patched source.
-          #    The stamp is based on pubspec.yaml hash, not individual .dart files.
-          cache_dir = os.path.join(flutter_root, 'bin', 'cache')
-          for name in ('flutter_tools.snapshot', 'flutter_tools.stamp'):
-              p = os.path.join(cache_dir, name)
-              try:
-                  os.remove(p)
-                  print(f'Removed {p}')
-              except FileNotFoundError:
-                  pass
-          print('Done. Flutter will recompile on next invocation.')
 
       - name: Flutter dependencies
         working-directory: app
