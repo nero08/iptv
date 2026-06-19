@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card">
+  <h2 style="margin-top:0">Créer un compte</h2>
+  <form method="post" action="/admin/account/create" class="row">
+    <label class="f">Libellé (client)
+      <input name="label" placeholder="ex: Jean Dupont">
+    </label>
+    <label class="f">Appareils max
+      <input name="max_devices" type="number" value="1" min="1" style="width:110px">
+    </label>
+    <label class="f">Expire le (optionnel)
+      <input name="expires_at" type="datetime-local">
+    </label>
+    <button type="submit">Générer le code</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">Comptes ({{ accounts|length }})</h2>
+  <table>
+    <thead><tr>
+      <th>Code d'accès</th><th>Libellé</th><th>Statut</th>
+      <th>Appareils</th><th>Sources</th><th>Expire</th><th></th>
+    </tr></thead>
+    <tbody>
+    {% for a in accounts %}
+      <tr>
+        <td><code class="code">{{ a.access_code }}</code></td>
+        <td>{{ a.label or '—' }}</td>
+        <td><span class="pill {{ a.status }}">{{ a.status }}</span></td>
+        <td>{{ a.device_count }} / {{ a.max_devices }}</td>
+        <td>{{ a.source_count }}</td>
+        <td>{{ a.expires_at.strftime('%Y-%m-%d') if a.expires_at else '∞' }}</td>
+        <td><a href="/admin/account/{{ a.id }}">Gérer →</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" style="color:var(--mut)">Aucun compte. Créez-en un ci-dessus.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

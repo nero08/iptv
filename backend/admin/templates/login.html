@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connexion — Deko IPTV Admin</title>
+<style>
+ body{margin:0;font:14px system-ui,sans-serif;background:#0f1115;color:#e6e6e6;
+      display:grid;place-items:center;height:100vh;}
+ form{background:#1a1d24;border:1px solid #2a2e38;border-radius:12px;padding:28px;width:300px;}
+ h1{font-size:17px;margin:0 0 18px;}
+ input{width:100%;padding:10px;margin-bottom:12px;border-radius:7px;
+       border:1px solid #2a2e38;background:#0c0e12;color:#e6e6e6;}
+ button{width:100%;padding:10px;border:none;border-radius:7px;background:#4f8cff;color:#fff;font-weight:600;cursor:pointer;}
+ .err{background:rgba(255,92,92,.15);color:#ff5c5c;padding:8px;border-radius:7px;margin-bottom:12px;font-size:13px;}
+</style></head>
+<body>
+  <form method="post" action="/admin/login">
+    <h1>🎬 Deko IPTV Admin</h1>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <input name="username" placeholder="Utilisateur" autofocus>
+    <input name="password" type="password" placeholder="Mot de passe">
+    <button type="submit">Se connecter</button>
+  </form>
+</body></html>

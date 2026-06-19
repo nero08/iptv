@@ -1,0 +1,30 @@
+# Credentials / secrets - never commit
+backend/.env
+backend/volumes/api/kong.generated.yml
+backend/volumes/api/*.bak
+
+# Flutter build artifacts
+app/build/
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Binary artifacts (deployed separately to the server)
+*.apk
+*.deb
+*.exe
+
+# Analysis / reverse engineering work (not part of the deployable project)
+analysis/
+extracted/
+tools/
+
+# Misc
+*.log
+__pycache__/
+*.pyc

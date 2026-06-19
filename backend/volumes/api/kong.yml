@@ -1,0 +1,90 @@
+_format_version: "2.1"
+_transform: true
+
+consumers:
+  - username: DASHBOARD
+    basicauth_credentials:
+      - username: $DASHBOARD_USERNAME
+        password: $DASHBOARD_PASSWORD
+  - username: anon
+    keyauth_credentials:
+      - key: $SUPABASE_ANON_KEY
+    acls:
+      - group: anon
+  - username: service_role
+    keyauth_credentials:
+      - key: $SUPABASE_SERVICE_KEY
+    acls:
+      - group: admin
+
+services:
+  ## GoTrue (auth) — app login -------------------------------------------------
+  - name: auth-v1
+    url: http://auth:9999/
+    routes:
+      - name: auth-v1-route
+        strip_path: true
+        paths:
+          - /auth/v1/
+    plugins:
+      - name: cors
+
+  ## PostgREST (rest) — data API (key-auth + ACL) -----------------------------
+  - name: rest-v1
+    url: http://rest:3000/
+    routes:
+      - name: rest-v1-route
+        strip_path: true
+        paths:
+          - /rest/v1/
+    plugins:
+      - name: cors
+      - name: key-auth
+        config:
+          hide_credentials: true
+      - name: acl
+        config:
+          hide_groups_header: true
+          allow:
+            - admin
+            - anon
+
+  ## Our FastAPI admin (codes / IPTV management) ------------------------------
+  - name: zeniptv-admin
+    url: http://admin:8000/
+    routes:
+      - name: zeniptv-admin-route
+        strip_path: false
+        paths:
+          - /admin
+      ## Public, unauthenticated APK download (served by the admin app at root).
+      - name: zeniptv-apk-route
+        strip_path: false
+        paths:
+          - /deko-iptv.apk
+      ## Public, unauthenticated DEB download (Linux desktop).
+      - name: zeniptv-deb-route
+        strip_path: false
+        paths:
+          - /deko-iptv.deb
+      ## Public, unauthenticated EXE download (Windows installer).
+      - name: zeniptv-exe-route
+        strip_path: false
+        paths:
+          - /deko-iptv-setup.exe
+    plugins:
+      - name: cors
+
+  ## Studio (generic DB admin UI) at root, behind basic-auth ------------------
+  - name: studio
+    url: http://studio:3000/
+    routes:
+      - name: studio-route
+        strip_path: true
+        paths:
+          - /
+    plugins:
+      - name: cors
+      - name: basic-auth
+        config:
+          hide_credentials: true

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block body %}
+<p><a href="/admin/">← Tous les comptes</a></p>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <div>
+      <div style="color:var(--mut);font-size:12px">CODE D'ACCÈS</div>
+      <code class="code" style="font-size:22px">{{ a.access_code }}</code>
+    </div>
+    <span class="pill {{ a.status }}" style="font-size:14px">{{ a.status }}</span>
+  </div>
+
+  <form method="post" action="/admin/account/{{ a.id }}/status" class="row" style="margin-top:14px">
+    <label class="f">Changer le statut
+      <select name="status_val">
+        <option value="active"  {{ 'selected' if a.status=='active' }}>active</option>
+        <option value="blocked" {{ 'selected' if a.status=='blocked' }}>blocked</option>
+        <option value="expired" {{ 'selected' if a.status=='expired' }}>expired</option>
+      </select>
+    </label>
+    <button type="submit">Appliquer</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Modifier</h3>
+  <form method="post" action="/admin/account/{{ a.id }}/update" class="row">
+    <label class="f">Libellé
+      <input name="label" value="{{ a.label or '' }}">
+    </label>
+    <label class="f">Appareils max
+      <input name="max_devices" type="number" value="{{ a.max_devices }}" min="1" style="width:110px">
+    </label>
+    <label class="f">Expire le
+      <input name="expires_at" type="datetime-local"
+             value="{{ a.expires_at.strftime('%Y-%m-%dT%H:%M') if a.expires_at else '' }}">
+    </label>
+    <button type="submit">Enregistrer</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Sources IPTV ({{ sources|length }})</h3>
+  <table>
+    <thead><tr><th>Type</th><th>Nom</th><th>Détails</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sources %}
+      <tr>
+        <td><b>{{ s.kind }}</b></td>
+        <td>{{ s.name }}</td>
+        <td style="color:var(--mut)">
+          {% if s.kind=='xtream' %}{{ s.server_url }} — {{ s.username }}
+          {% else %}{{ s.m3u_url }}{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/admin/source/{{ s.id }}/delete">
+            <input type="hidden" name="account_id" value="{{ a.id }}">
+            <button class="bad" type="submit">Suppr.</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" style="color:var(--mut)">Aucune source.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h4>Ajouter une source</h4>
+  <form method="post" action="/admin/account/{{ a.id }}/source" class="row">
+    <label class="f">Type
+      <select name="kind" onchange="
+        this.closest('form').querySelectorAll('.xt').forEach(e=>e.style.display=this.value=='xtream'?'flex':'none');
+        this.closest('form').querySelectorAll('.m3').forEach(e=>e.style.display=this.value=='m3u'?'flex':'none');">
+        <option value="xtream">Xtream</option>
+        <option value="m3u">M3U</option>
+      </select>
+    </label>
+    <label class="f">Nom <input name="name" value="My Playlist"></label>
+    <label class="f xt">Serveur <input name="server_url" placeholder="http://portal:8080"></label>
+    <label class="f xt">Utilisateur <input name="username"></label>
+    <label class="f xt">Mot de passe <input name="password"></label>
+    <label class="f m3" style="display:none">URL M3U <input name="m3u_url" placeholder="http://.../get.php?..."></label>
+    <button type="submit">Ajouter</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Appareils ({{ devices|length }} / {{ a.max_devices }})</h3>
+  <table>
+    <thead><tr><th>Device ID</th><th>Nom</th><th>Vu</th><th></th></tr></thead>
+    <tbody>
+    {% for d in devices %}
+      <tr>
+        <td style="font-family:monospace">{{ d.device_id }}</td>
+        <td>{{ d.device_name or '—' }}</td>
+        <td style="color:var(--mut)">{{ d.last_seen_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>
+          <form method="post" action="/admin/device/{{ d.id }}/delete">
+            <input type="hidden" name="account_id" value="{{ a.id }}">
+            <button class="ghost" type="submit">Révoquer</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" style="color:var(--mut)">Aucun appareil enregistré.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
