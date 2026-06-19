@@ -104,17 +104,17 @@ async def download_deb():
     )
 
 
-EXE_PATH = "/app/downloads/deko-iptv-setup.exe"
+EXE_PATH = "/app/downloads/deko-iptv.exe"
 
 
-@app.get("/deko-iptv-setup.exe")
+@app.get("/deko-iptv.exe")
 async def download_exe():
     if not os.path.exists(EXE_PATH):
         raise HTTPException(404, "EXE not available")
     return FileResponse(
         EXE_PATH,
         media_type="application/vnd.microsoft.portable-executable",
-        filename="deko-iptv-setup.exe",
+        filename="deko-iptv.exe",
     )
 
 

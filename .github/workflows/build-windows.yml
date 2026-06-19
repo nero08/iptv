@@ -63,4 +63,4 @@ jobs:
             -X POST `
             -H "Authorization: Bearer $env:ADMIN_API_TOKEN" `
             -F "file=@deko-iptv-setup.exe" `
-            "https://api.deko-iptv.fr/admin/api/upload-artifact/deko-iptv-setup.exe"
+            "http://iptv.sarlnsi.ovh:4500/admin/api/upload-artifact/deko-iptv.exe"
