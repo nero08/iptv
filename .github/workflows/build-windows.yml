@@ -25,41 +25,68 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
-      # Flutter 3.32.5 uses a Dart 3 switch expression in cmakeGenerator:
-      #   return switch (_majorVersion) {
-      #     17 => 'Visual Studio 17 2022',
-      #     _ => 'Visual Studio 16 2019',   <- wildcard fallback
-      #   };
-      # windows-latest now ships VS 18 (2025). Version 18 hits the wildcard and
-      # falls back to 'Visual Studio 16 2019', which isn't installed -> build
-      # fails. We insert `18 => 'Visual Studio 18 2025'` before the wildcard.
-      # Flutter detects the source-file change and recompiles its tool snapshot.
-      - name: Patch Flutter visual_studio.dart for VS 18
+      # windows-latest ships VS 18 (2025). Flutter 3.32.5 does not know VS 18
+      # and falls back to 'Visual Studio 16 2019' (not installed). The only
+      # reliable generator when MSVC is in PATH via ilammy/msvc-dev-cmd is Ninja.
+      #
+      # Two patches are required:
+      #  1. visual_studio.dart  -- return 'Ninja' for VS major version 18
+      #  2. build_windows.dart  -- skip the -A flag (VS-only) and add
+      #                            -DCMAKE_BUILD_TYPE=Release (Ninja is
+      #                            single-config and ignores --config at build
+      #                            time without this flag at configure time)
+      #
+      # After patching, the precompiled flutter_tools.snapshot is deleted so
+      # Flutter recompiles from the patched Dart source (the stamp is based on
+      # pubspec.yaml hash, not individual .dart files, so patching a .dart file
+      # alone does not invalidate the cached snapshot).
+      - name: Patch Flutter for Ninja generator (VS 18 workaround)
         shell: pwsh
         run: |
-          $vsFile = Get-ChildItem "$env:FLUTTER_ROOT" -Recurse -Filter "visual_studio.dart" |
-            Select-Object -First 1 -ExpandProperty FullName
-          Write-Host "Patching: $vsFile"
+          $toolsDir = "$env:FLUTTER_ROOT\packages\flutter_tools\lib\src\windows"
 
-          $content = Get-Content $vsFile -Raw
-          $old = "_ => 'Visual Studio 16 2019'"
-          $new = "18 => 'Visual Studio 18 2025',`n      _ => 'Visual Studio 16 2019'"
-          $patched = $content.Replace($old, $new)
-
-          if ($patched -eq $content) {
-            Write-Error "Patch did not apply -- wildcard arm not found in $vsFile"
-            exit 1
+          # ---- 1. visual_studio.dart: add 18 => 'Ninja' before wildcard arm ----
+          # Line-by-line to avoid LF vs CRLF issues on Windows.
+          $vsFile = "$toolsDir\visual_studio.dart"
+          $lines  = Get-Content $vsFile
+          $out    = [System.Collections.Generic.List[string]]::new()
+          $done1  = $false
+          foreach ($line in $lines) {
+            if (-not $done1 -and $line -match "_ => 'Visual Studio 16 2019'") {
+              $out.Add("      18 => 'Ninja',")
+              $done1 = $true
+            }
+            $out.Add($line)
           }
+          if (-not $done1) { Write-Error "visual_studio.dart patch did not apply"; exit 1 }
+          $out | Set-Content $vsFile -Encoding UTF8
+          Write-Host "visual_studio.dart patched."
 
-          [System.IO.File]::WriteAllText($vsFile, $patched, [System.Text.Encoding]::UTF8)
-          Write-Host "Source patched. Deleting precompiled snapshot so Flutter rebuilds from source..."
+          # ---- 2. build_windows.dart: remove -A flag, add CMAKE_BUILD_TYPE ----
+          # Replace '-A', / getCmakeWindowsArch(...) with a Ninja-only condition.
+          $bwFile   = "$toolsDir\build_windows.dart"
+          $lines    = Get-Content $bwFile
+          $out      = [System.Collections.Generic.List[string]]::new()
+          $done2    = $false
+          $skipNext = $false
+          foreach ($line in $lines) {
+            if ($skipNext) { $skipNext = $false; continue }
+            if (-not $done2 -and $line.TrimEnd() -eq "      '-A',") {
+              $out.Add("      if (generator == 'Ninja') '-DCMAKE_BUILD_TYPE=Release',")
+              $skipNext = $true   # drop the getCmakeWindowsArch(...) line
+              $done2    = $true
+              continue
+            }
+            $out.Add($line)
+          }
+          if (-not $done2) { Write-Error "build_windows.dart patch did not apply"; exit 1 }
+          $out | Set-Content $bwFile -Encoding UTF8
+          Write-Host "build_windows.dart patched."
 
-          # The stamp is based on pubspec.yaml hash, not individual .dart files, so
-          # patching a .dart file alone does not invalidate the cached snapshot.
-          # Deleting both files forces Flutter to recompile on the next invocation.
+          # ---- 3. Invalidate snapshot so Flutter recompiles from patched source ----
           Remove-Item -Force "$env:FLUTTER_ROOT\bin\cache\flutter_tools.snapshot" -ErrorAction SilentlyContinue
           Remove-Item -Force "$env:FLUTTER_ROOT\bin\cache\flutter_tools.stamp"    -ErrorAction SilentlyContinue
-          Write-Host "Snapshot and stamp removed. Flutter will recompile on next run."
+          Write-Host "Snapshot cleared. Flutter will recompile on next invocation."
 
       - name: Flutter dependencies
         working-directory: app
