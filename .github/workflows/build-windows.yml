@@ -47,13 +47,19 @@ jobs:
           $patched = $content.Replace($old, $new)
 
           if ($patched -eq $content) {
-            Write-Error "Patch did not apply -- 'Visual Studio 16 2019' wildcard arm not found in $vsFile"
+            Write-Error "Patch did not apply -- wildcard arm not found in $vsFile"
             exit 1
           }
 
           [System.IO.File]::WriteAllText($vsFile, $patched, [System.Text.Encoding]::UTF8)
-          Write-Host "Patch applied. cmakeGenerator section now reads:"
-          (Get-Content $vsFile)[181..189] | ForEach-Object { Write-Host "  $_" }
+          Write-Host "Source patched. Deleting precompiled snapshot so Flutter rebuilds from source..."
+
+          # The stamp is based on pubspec.yaml hash, not individual .dart files, so
+          # patching a .dart file alone does not invalidate the cached snapshot.
+          # Deleting both files forces Flutter to recompile on the next invocation.
+          Remove-Item -Force "$env:FLUTTER_ROOT\bin\cache\flutter_tools.snapshot" -ErrorAction SilentlyContinue
+          Remove-Item -Force "$env:FLUTTER_ROOT\bin\cache\flutter_tools.stamp"    -ErrorAction SilentlyContinue
+          Write-Host "Snapshot and stamp removed. Flutter will recompile on next run."
 
       - name: Flutter dependencies
         working-directory: app
