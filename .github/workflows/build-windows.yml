@@ -25,6 +25,48 @@ jobs:
       - name: Enable Windows desktop
         run: flutter config --enable-windows-desktop
 
+      # Flutter 3.32.5 only knows VS 16 and 17. windows-latest now ships VS 18
+      # (2025). This patch inserts a case 18 before the default/case-16 fallback
+      # and picks the right CMake generator. Flutter detects the source change and
+      # recompiles its tool snapshot automatically.
+      - name: Patch Flutter visual_studio.dart for VS 18
+        shell: pwsh
+        run: |
+          $vsFile = Get-ChildItem "$env:FLUTTER_ROOT" -Recurse -Filter "visual_studio.dart" |
+            Select-Object -First 1 -ExpandProperty FullName
+          Write-Host "File: $vsFile"
+
+          # Determine which CMake generator to use
+          $cmakeHelp = cmake --help 2>&1 | Out-String
+          $gen = if ($cmakeHelp -match 'Visual Studio 18') {
+            'Visual Studio 18 2025'
+          } else {
+            'Ninja'
+          }
+          Write-Host "CMake generator: $gen"
+
+          # Patch: insert VS 17 + VS 18 cases before the case-16 / default line
+          $lines  = Get-Content $vsFile
+          $result = [System.Collections.Generic.List[string]]::new()
+          $done   = $false
+          foreach ($line in $lines) {
+            if (-not $done -and ($line -match '^\s*case 16\b' -or $line -match '^\s*default\s*:')) {
+              $result.Add("      case 18: return '$gen';")
+              $result.Add("      case 17: return 'Visual Studio 17 2022';")
+              $done = $true
+            }
+            # Drop the old case-17 lines to avoid duplicates
+            if ($line -match 'case 17\b' -or
+                ($line -match "Visual Studio 17 2022" -and $line -notmatch '//')) {
+              continue
+            }
+            $result.Add($line)
+          }
+          $result | Set-Content $vsFile -Encoding UTF8
+          Write-Host "Patch applied. Switch cases now:"
+          Get-Content $vsFile | Select-String 'case \d+|return.*Visual|return.*Ninja' |
+            ForEach-Object { Write-Host "  $_" }
+
       - name: Flutter dependencies
         working-directory: app
         run: flutter pub get
@@ -40,11 +82,11 @@ jobs:
         run: choco install nsis --yes --no-progress
 
       - name: Build installer
+        shell: pwsh
         run: |
           makensis /V2 `
             "/DWORKDIR=$env:GITHUB_WORKSPACE" `
             "installer\installer.nsi"
-        shell: pwsh
 
       - name: Upload artifact (GitHub)
         uses: actions/upload-artifact@v4
@@ -54,6 +96,7 @@ jobs:
           retention-days: 30
 
       - name: Upload to server
+        shell: pwsh
         env:
           ADMIN_API_TOKEN: ${{ secrets.ADMIN_API_TOKEN }}
         run: |
@@ -62,4 +105,3 @@ jobs:
             -H "Authorization: Bearer $env:ADMIN_API_TOKEN" `
             -F "file=@deko-iptv-setup.exe" `
             "https://api.deko-iptv.fr/admin/api/upload-artifact/deko-iptv-setup.exe"
-        shell: pwsh
