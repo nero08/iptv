@@ -79,8 +79,23 @@ jobs:
             }
             $out.Add($line)
           }
-          if (-not $done2) { Write-Error "build_windows.dart patch did not apply"; exit 1 }
-          $out | Set-Content $bwFile -Encoding UTF8
+          if (-not $done2) { Write-Error "build_windows.dart -A patch did not apply"; exit 1 }
+
+          # ---- 2b. build_windows.dart: lowercase --target 'INSTALL' -> 'install' ----
+          # With Ninja, cmake --build --target INSTALL fails; the target is 'install'
+          # (lowercase). MSBuild is case-insensitive so lowercase works for VS too.
+          $out2 = [System.Collections.Generic.List[string]]::new()
+          $done3 = $false
+          foreach ($line in $out) {
+            if (-not $done3 -and $line -match "'--target', 'INSTALL'") {
+              $out2.Add($line -replace "'INSTALL'", "'install'")
+              $done3 = $true
+              continue
+            }
+            $out2.Add($line)
+          }
+          if (-not $done3) { Write-Error "build_windows.dart INSTALL patch did not apply"; exit 1 }
+          $out2 | Set-Content $bwFile -Encoding UTF8
           Write-Host "build_windows.dart patched."
 
           # ---- 3. Invalidate snapshot so Flutter recompiles from patched source ----
