@@ -15,6 +15,9 @@ Future<void> main() async {
   if (Platform.isLinux) {
     await windowManager.ensureInitialized();
     VideoPlayerMediaKit.ensureInitialized(linux: true);
+  } else if (Platform.isWindows) {
+    await windowManager.ensureInitialized();
+    VideoPlayerMediaKit.ensureInitialized(windows: true);
   }
   // TV-style experience: landscape only + fullscreen (hide status/nav bars).
   SystemChrome.setPreferredOrientations(const [

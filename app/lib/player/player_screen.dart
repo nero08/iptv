@@ -100,13 +100,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isFullscreen = false;
   double? _seekValue; // non-null while dragging seek slider
 
+  bool get _isDesktop => Platform.isLinux || Platform.isWindows;
+
   LiveChannel? get _current => widget.canZap ? widget.channels![_index] : null;
 
   @override
   void initState() {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    if (!Platform.isLinux) WakelockPlus.enable();
+    if (!_isDesktop) WakelockPlus.enable();
     _open(
       widget.streamUrl,
       startAt: (!widget.isLive && widget.startPositionSecs > 0)
@@ -244,7 +246,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<void> _toggleFullscreen() async {
-    if (!Platform.isLinux) return;
+    if (!_isDesktop) return;
     final next = !_isFullscreen;
     await windowManager.setFullScreen(next);
     if (mounted) setState(() => _isFullscreen = next);
@@ -399,8 +401,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
-    if (!Platform.isLinux) WakelockPlus.disable();
-    if (Platform.isLinux && _isFullscreen) windowManager.setFullScreen(false);
+    if (!_isDesktop) WakelockPlus.disable();
+    if (_isDesktop && _isFullscreen) windowManager.setFullScreen(false);
     _retryTimer?.cancel();
     _chromeTimer?.cancel();
     _listScroll.dispose();
@@ -464,12 +466,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             Positioned(top: 0, bottom: 0, right: 0, child: _channelList()),
           if (_reconnecting)
             Center(child: _ReconnectingBadge(error: _lastError, retries: _retries)),
-          if (Platform.isLinux)
+          if (_isDesktop)
             Positioned(left: 0, right: 0, bottom: 0, child: _desktopControls()),
         ],
       ),
     );
-    if (Platform.isLinux) {
+    if (_isDesktop) {
       body = MouseRegion(
         onHover: (_) => _showChrome(),
         child: Listener(
